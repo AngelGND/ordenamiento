@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Ordenador de ofertas — Nike CL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f4f2; --panel:#ffffff; --ink:#15151a; --sub:#5b5b63;
+    --line:#e1e1de; --accent:#ff4d2e; --accent-ink:#7a1c0c;
+    --ok:#1c7a4d; --ok-bg:#e6f5ec; --warn:#a35b00; --warn-bg:#fdf0dd;
+    --mono: "SF Mono","IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: "Helvetica Neue", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:32px 24px 80px;}
+  header.top{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:28px; border-bottom:3px solid var(--ink); padding-bottom:14px;}
+  header.top h1{font-size:22px; letter-spacing:-0.01em; margin:0; font-weight:700;}
+  header.top .tag{font-family:var(--mono); font-size:11px; color:var(--sub); text-transform:uppercase; letter-spacing:.06em;}
+  .lede{color:var(--sub); font-size:14px; max-width:640px; margin:0 0 32px; line-height:1.5;}
+
+  .step{background:var(--panel); border:1px solid var(--line); border-radius:2px; margin-bottom:18px; overflow:hidden;}
+  .step-head{display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--line);}
+  .step-num{font-family:var(--mono); font-size:12px; width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .step-num.done{background:var(--ok);}
+  .step-title{font-weight:600; font-size:15px;}
+  .step-sub{font-size:12.5px; color:var(--sub); margin-left:auto; font-family:var(--mono);}
+  .step-body{padding:18px 20px;}
+
+  .drop{border:1.5px dashed var(--line); border-radius:2px; padding:22px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;}
+  .drop:hover, .drop.drag{border-color:var(--accent); background:#fff7f5;}
+  .drop input{display:none;}
+  .drop .dtitle{font-size:13.5px; font-weight:600;}
+  .drop .dsub{font-size:12px; color:var(--sub); margin-top:2px;}
+  .filelist{margin-top:10px; font-family:var(--mono); font-size:12px; color:var(--ink);}
+  .filelist div{padding:4px 0; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:12px;}
+  .filelist div:first-child{border-top:none;}
+  .fileok{color:var(--ok);}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  label.field{display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--ink);}
+  .hint{font-size:11.5px; color:var(--sub); margin-top:5px; line-height:1.45;}
+  textarea, input[type=text], input[type=number]{
+    width:100%; border:1px solid var(--line); border-radius:2px; padding:9px 10px;
+    font-family:var(--mono); font-size:12.5px; background:#fbfbfa; color:var(--ink);
+  }
+  textarea{min-height:84px; resize:vertical;}
+  input[type=number]{width:90px;}
+  .inline{display:flex; align-items:center; gap:10px;}
+
+  button.primary{
+    background:var(--ink); color:#fff; border:none; padding:13px 22px; font-size:13.5px;
+    font-weight:600; border-radius:2px; cursor:pointer; letter-spacing:.01em;
+  }
+  button.primary:disabled{background:#c6c6c2; cursor:not-allowed;}
+  button.primary:not(:disabled):hover{background:var(--accent-ink);}
+  button.ghost{
+    background:none; border:1px solid var(--ink); color:var(--ink); padding:9px 16px;
+    font-size:12.5px; font-weight:600; border-radius:2px; cursor:pointer;
+  }
+  button.ghost:hover{background:var(--ink); color:#fff;}
+
+  #runRow{display:flex; align-items:center; gap:14px; margin:22px 0 8px;}
+  #runMsg{font-family:var(--mono); font-size:12px; color:var(--sub);}
+
+  #results{display:none; margin-top:30px;}
+  .stats{display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:18px;}
+  .stat{background:var(--panel); padding:14px 12px;}
+  .stat .n{font-family:var(--mono); font-size:20px; font-weight:700;}
+  .stat .l{font-size:10.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.04em; margin-top:2px;}
+
+  .warnbox{background:var(--warn-bg); border:1px solid #f0d3a3; color:var(--warn); padding:10px 14px; font-size:12px; margin-bottom:16px; border-radius:2px;}
+  .warnbox b{color:var(--warn);}
+
+  .toolsrow{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px;}
+  #search{width:260px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px; background:var(--panel);}
+  thead th{
+    position:sticky; top:0; background:var(--ink); color:#fff; text-align:left; font-weight:600;
+    padding:9px 10px; cursor:pointer; user-select:none; font-size:11.5px; letter-spacing:.02em;
+  }
+  thead th:hover{background:var(--accent-ink);}
+  tbody td{padding:8px 10px; border-bottom:1px solid var(--line);}
+  tbody tr:hover{background:#fbf5f3;}
+  td.num, th.num{font-family:var(--mono); text-align:right;}
+  .badge{font-family:var(--mono); font-size:10.5px; padding:2px 6px; border-radius:2px; font-weight:700;}
+  .badge.g3{background:var(--accent); color:#fff;}
+  .badge.fb{background:var(--warn-bg); color:var(--warn); border:1px solid #f0d3a3;}
+  .tablewrap{max-height:560px; overflow:auto; border:1px solid var(--line);}
+
+  footer.note{margin-top:36px; font-size:11.5px; color:var(--sub); border-top:1px solid var(--line); padding-top:14px; line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Ordenador de ofertas</h1>
+    <div class="tag">Nike CL · índice ventas × stock</div>
+  </header>
+  <p class="lede">Sube la colección y los archivos de stock/ventas, ajustá las reglas si hace falta, y generá el orden final: índice por SKU, ranking por división, boost para Air Force 1 / Air Jordan 1 / Dunk, y entrelazado por división (4:1:1 por defecto, editable) igual de base que el archivo "Orden Ofertas" original.</p>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num" id="s1num">1</div>
+      <div class="step-title">Colección</div>
+      <div class="step-sub" id="s1sub">sin archivo</div>
+    </div>
+    <div class="step-body">
+      <div class="drop" id="drop1">
+        <input type="file" id="file1" accept=".xlsx,.xls">
+        <div class="dtitle">Soltar o hacer clic para elegir el .xlsx de la colección</div>
+        <div class="dsub">Necesita columnas: Product Code, Marketing Name, Division (y opcionalmente Stock BL)</div>
+      </div>
+      <div class="filelist" id="list1"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num" id="s2num">2</div>
+      <div class="step-title">Stock</div>
+      <div class="step-sub" id="s2sub">sin archivos</div>
+    </div>
+    <div class="step-body">
+      <div class="drop" id="drop2">
+        <input type="file" id="file2" accept=".xlsx,.xls" multiple>
+        <div class="dtitle">Soltar o hacer clic para elegir uno o más .xlsx de stock</div>
+        <div class="dsub">Podés seleccionar varios juntos o agregarlos de a uno — se van sumando. Cada archivo necesita: Style Color, Stock Disponible. (Si trae USD Venta, se usa solo como respaldo si no hay archivo de ventas en el paso 3.)</div>
+      </div>
+      <div class="filelist" id="list2"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num" id="s3num">3</div>
+      <div class="step-title">Ventas</div>
+      <div class="step-sub" id="s3sub">opcional — sin archivo</div>
+    </div>
+    <div class="step-body">
+      <div class="drop" id="drop3">
+        <input type="file" id="file3" accept=".xlsx,.xls" multiple>
+        <div class="dtitle">Soltar o hacer clic para elegir uno o más .xlsx de ventas (formato "LP vs Sales")</div>
+        <div class="dsub">Columnas esperadas: LP, Current, Style Color (código y nombre juntos, ej. "HM8755-001 - NIKE AIR MAX 95"). Se usa "Current"; si no hay, cae a "LP". Si subís esto, tiene prioridad sobre el USD Venta del paso 2.</div>
+      </div>
+      <div class="filelist" id="list3"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="step-num done">4</div>
+      <div class="step-title">Reglas</div>
+      <div class="step-sub">valores por defecto ya cargados — editá si hace falta</div>
+    </div>
+    <div class="step-body">
+      <div class="grid2">
+        <div>
+          <label class="field">SKUs a excluir (uno por línea)</label>
+          <textarea id="excludeList">IR5898-573
+IB1873-003
+IR6934-010
+IO9643-004
+II1248-400
+PGAK-1005</textarea>
+          <div class="hint">Se comparan sin importar mayúsculas/minúsculas ni espacios.</div>
+        </div>
+        <div>
+          <label class="field">Palabras clave "3 grandes"</label>
+          <textarea id="g3keywords">AIR FORCE 1
+JORDAN 1
+DUNK</textarea>
+          <div class="hint">"JORDAN 1" busca la palabra completa (no matchea "Jordan 11" ni "Jordan 12"). Una palabra clave por línea.</div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:16px;">
+        <div>
+          <label class="field">Multiplicador de índice para las 3 grandes</label>
+          <div class="inline">
+            <input type="number" id="boostMult" value="5" min="1" step="0.5">
+            <span class="hint" style="margin:0;">1 = comportamiento idéntico al archivo "Orden Ofertas" original (compiten solo por índice real, sin priorizar 3 grandes). Números altos (ej. 1000) los llevan casi siempre al frente de su división, sin importar performance.</span>
+          </div>
+        </div>
+        <div>
+          <label class="field">Entrelazado por división</label>
+          <div class="inline">
+            <span class="hint" style="margin:0;">Footwear</span>
+            <input type="number" id="ratioFootwear" value="4" min="0" step="1" style="width:60px;">
+            <span class="hint" style="margin:0;">Apparel</span>
+            <input type="number" id="ratioApparel" value="1" min="0" step="1" style="width:60px;">
+            <span class="hint" style="margin:0;">Equipment</span>
+            <input type="number" id="ratioEquipment" value="1" min="0" step="1" style="width:60px;">
+          </div>
+          <div class="hint">Por defecto 4:1:1, igual que el archivo "Orden Ofertas" original. Cambiá estos números si para una campaña puntual necesitás otra proporción — por ejemplo 3:2:1 si querés más apparel.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="runRow">
+    <button class="primary" id="runBtn" disabled>Generar orden final</button>
+    <span id="runMsg"></span>
+  </div>
+
+  <section id="results">
+    <div class="stats" id="stats"></div>
+    <div id="warnZone"></div>
+
+    <div class="toolsrow">
+      <input type="text" id="search" placeholder="Buscar por código o nombre…">
+      <button class="ghost" id="downloadBtn">Descargar Excel (orden final)</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-k="orden" class="num">Orden</th>
+            <th data-k="product_code">Product code</th>
+            <th data-k="marketing_name">Nombre</th>
+            <th data-k="division">División</th>
+            <th data-k="es_3_grandes">3G</th>
+            <th data-k="stock_final" class="num">Stock</th>
+            <th data-k="ventas_usd" class="num">Ventas (USD)</th>
+            <th data-k="fuente_ventas">Fuente venta</th>
+            <th data-k="indice_final" class="num">Índice final</th>
+            <th data-k="fuente_stock">Fuente stock</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="note">
+    Todo el cálculo corre en tu navegador — los archivos no se suben a ningún servidor. Lógica: los SKUs con stock = 0 se excluyen del orden (no pueden ofertarse); el resto usa índice = stock × ventas (si da 0 por falta de ventas, se usa 1); dentro de cada división se ordena por índice final descendente; las 3 grandes se multiplican por el boost configurado; el resultado se entrelaza según el ratio Footwear:Apparel:Equipment que configures arriba (4:1:1 por defecto).
+  </footer>
+</div>
+
+<script>
+let catalog = [];      // filas de la colección
+let stockMap = {};     // code -> {stock, ventas}  (ventas acá es solo respaldo)
+let ventasMap = {};    // code -> {current, lp}
+let ventasFileEntries = [];
+let finalOrder = [];   // resultado calculado
+let sinStockList = []; // SKUs excluidos por no tener stock disponible
+let sortState = {k:'orden', dir:1};
+
+function norm(s){ return (s===undefined||s===null) ? '' : String(s).trim(); }
+function upperKey(s){ return norm(s).toUpperCase(); }
+
+function findHeaderRow(rows, mustInclude){
+  for(let i=0;i<Math.min(rows.length,8);i++){
+    const cells = rows[i].map(c=>upperKey(c));
+    if(mustInclude.some(m=>cells.some(c=>c.includes(m)))) return i;
+  }
+  return 0;
+}
+function colIndex(headerCells, exactCandidates, containsCandidates){
+  const upper = headerCells.map(h=>upperKey(h));
+  for(const cand of exactCandidates){
+    const i = upper.indexOf(cand);
+    if(i>=0) return i;
+  }
+  for(const cand of containsCandidates||[]){
+    const i = upper.findIndex(h=>h.includes(cand));
+    if(i>=0) return i;
+  }
+  return -1;
+}
+
+function readWorkbook(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+        resolve(rows);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function handleCatalogFiles(files){
+  if(!files.length) return;
+  const rows = await readWorkbook(files[0]);
+  const hIdx = findHeaderRow(rows, ['PRODUCT CODE']);
+  const header = rows[hIdx];
+  const iCode = colIndex(header, ['PRODUCT CODE'], ['PRODUCT CODE']);
+  const iName = colIndex(header, ['MARKETING NAME'], ['MARKETING NAME','NAME']);
+  const iDiv  = colIndex(header, ['DIVISION'], ['DIVISION']);
+  const iStockBL = colIndex(header, ['STOCK BL'], ['STOCK']);
+  const iRetail = colIndex(header, ['RETAIL PRICE FA26'], ['RETAIL PRICE']);
+  const iPvp = colIndex(header, ['PVP SALE'], ['PVP']);
+  const iPct = colIndex(header, ['% SALE'], ['SALE']);
+
+  catalog = [];
+  if(iCode<0 || iDiv<0){
+    document.getElementById('list1').innerHTML = '<div style="color:#a32d2d">No se encontraron columnas "Product Code" / "Division" en la primera hoja del archivo.</div>';
+    return;
+  }
+  for(let r=hIdx+1; r<rows.length; r++){
+    const row = rows[r];
+    const code = norm(row[iCode]);
+    if(!code) continue;
+    catalog.push({
+      product_code: code,
+      marketing_name: norm(row[iName]),
+      division_raw: norm(row[iDiv]),
+      stock_bl: Number(row[iStockBL])||0,
+      retail_price: iRetail>=0 ? row[iRetail] : '',
+      pvp_sale: iPvp>=0 ? row[iPvp] : '',
+      pct_sale: iPct>=0 ? row[iPct] : '',
+    });
+  }
+  document.getElementById('list1').innerHTML =
+    `<div><span>${files[0].name}</span><span class="fileok">${catalog.length} SKUs leídos ✓</span></div>`;
+  document.getElementById('s1sub').textContent = `${catalog.length} SKUs`;
+  document.getElementById('s1num').classList.add('done');
+  updateRunButton();
+}
+
+let stockFileEntries = []; // [{name, count, records:[{code,stock,ventas}]}]
+
+function rebuildStockMap(){
+  stockMap = {};
+  for(const entry of stockFileEntries){
+    for(const rec of entry.records){
+      if(stockMap[rec.code]){
+        stockMap[rec.code].stock += rec.stock;
+        stockMap[rec.code].ventas += rec.ventas;
+      }else{
+        stockMap[rec.code] = {stock: rec.stock, ventas: rec.ventas};
+      }
+    }
+  }
+}
+
+function renderStockFileList(){
+  if(!stockFileEntries.length){
+    document.getElementById('list2').innerHTML = '';
+  }else{
+    document.getElementById('list2').innerHTML = stockFileEntries.map((entry,i)=>`
+      <div>
+        <span>${entry.name}</span>
+        <span class="fileok">${entry.count} SKUs ✓</span>
+        <span style="cursor:pointer; color:#a32d2d;" data-remove="${i}" title="Quitar este archivo">✕</span>
+      </div>`).join('');
+    document.getElementById('list2').querySelectorAll('[data-remove]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        stockFileEntries.splice(Number(el.dataset.remove), 1);
+        rebuildStockMap();
+        renderStockFileList();
+        document.getElementById('s2sub').textContent = `${Object.keys(stockMap).length} SKUs únicos (${stockFileEntries.length} archivo${stockFileEntries.length===1?'':'s'})`;
+        if(!stockFileEntries.length) document.getElementById('s2num').classList.remove('done');
+        updateRunButton();
+      });
+    });
+  }
+}
+
+async function handleStockFiles(files){
+  if(!files.length) return;
+  for(const file of files){
+    const rows = await readWorkbook(file);
+    const hIdx = findHeaderRow(rows, ['STYLE COLOR']);
+    const header = rows[hIdx];
+    const iCode = colIndex(header, ['STYLE COLOR'], ['STYLE COLOR','STYLE']);
+    const iStock = colIndex(header, ['STOCK DISPONIBLE'], ['STOCK DISPONIBLE']);
+    const iVenta = colIndex(header, ['USD VENTA'], ['USD VENTA','VENTA']);
+    if(iCode<0){
+      stockFileEntries.push({name: file.name+' (sin columna "Style Color")', count:0, records:[]});
+      continue;
+    }
+    const records = [];
+    for(let r=hIdx+1; r<rows.length; r++){
+      const row = rows[r];
+      const code = upperKey(row[iCode]);
+      if(!code) continue;
+      records.push({code, stock:Number(row[iStock])||0, ventas:Number(row[iVenta])||0});
+    }
+    // si se vuelve a subir un archivo con el mismo nombre, reemplaza la entrada anterior en vez de duplicarla
+    const existingIdx = stockFileEntries.findIndex(e=>e.name===file.name);
+    const entry = {name: file.name, count: records.length, records};
+    if(existingIdx>=0) stockFileEntries[existingIdx] = entry;
+    else stockFileEntries.push(entry);
+  }
+  rebuildStockMap();
+  renderStockFileList();
+  document.getElementById('s2sub').textContent = `${Object.keys(stockMap).length} SKUs únicos (${stockFileEntries.length} archivo${stockFileEntries.length===1?'':'s'})`;
+  document.getElementById('s2num').classList.add('done');
+  updateRunButton();
+}
+
+function updateRunButton(){
+  document.getElementById('runBtn').disabled = !(catalog.length && Object.keys(stockMap).length);
+}
+
+function rebuildVentasMap(){
+  ventasMap = {};
+  for(const entry of ventasFileEntries){
+    for(const rec of entry.records){
+      // si el mismo code aparece en mas de un archivo de ventas, se suma (ej. archivos partidos por rango)
+      if(ventasMap[rec.code]){
+        ventasMap[rec.code].current += rec.current;
+        ventasMap[rec.code].lp += rec.lp;
+      }else{
+        ventasMap[rec.code] = {current: rec.current, lp: rec.lp};
+      }
+    }
+  }
+}
+
+function renderVentasFileList(){
+  if(!ventasFileEntries.length){
+    document.getElementById('list3').innerHTML = '';
+    return;
+  }
+  document.getElementById('list3').innerHTML = ventasFileEntries.map((entry,i)=>`
+    <div>
+      <span>${entry.name}</span>
+      <span class="fileok">${entry.count} SKUs ✓</span>
+      <span style="cursor:pointer; color:#a32d2d;" data-removev="${i}" title="Quitar este archivo">✕</span>
+    </div>`).join('');
+  document.getElementById('list3').querySelectorAll('[data-removev]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      ventasFileEntries.splice(Number(el.dataset.removev), 1);
+      rebuildVentasMap();
+      renderVentasFileList();
+      updateVentasSub();
+    });
+  });
+}
+
+function updateVentasSub(){
+  if(!ventasFileEntries.length){
+    document.getElementById('s3sub').textContent = 'opcional — sin archivo';
+    document.getElementById('s3num').classList.remove('done');
+  }else{
+    document.getElementById('s3sub').textContent = `${Object.keys(ventasMap).length} SKUs únicos (${ventasFileEntries.length} archivo${ventasFileEntries.length===1?'':'s'})`;
+    document.getElementById('s3num').classList.add('done');
+  }
+}
+
+// "Style Color" en este archivo viene como "CODE - Nombre del producto"
+function splitStyleColorCell(raw){
+  const s = norm(raw);
+  const idx = s.indexOf(' - ');
+  if(idx<0) return {code: upperKey(s), name: ''};
+  return {code: upperKey(s.slice(0,idx)), name: s.slice(idx+3).trim()};
+}
+
+async function handleVentasFiles(files){
+  if(!files.length) return;
+  for(const file of files){
+    const rows = await readWorkbook(file);
+    const hIdx = findHeaderRow(rows, ['STYLE COLOR']);
+    const header = rows[hIdx];
+    const iSC = colIndex(header, ['STYLE COLOR'], ['STYLE COLOR','STYLE']);
+    const iCurrent = colIndex(header, ['CURRENT'], ['CURRENT']);
+    const iLP = colIndex(header, ['LP'], ['LP']);
+    if(iSC<0){
+      ventasFileEntries.push({name: file.name+' (sin columna "Style Color")', count:0, records:[]});
+      continue;
+    }
+    const records = [];
+    for(let r=hIdx+1; r<rows.length; r++){
+      const row = rows[r];
+      const raw = row[iSC];
+      if(!raw) continue;
+      const {code} = splitStyleColorCell(raw);
+      if(!code) continue;
+      const current = Number(row[iCurrent])||0;
+      const lp = iLP>=0 ? (Number(row[iLP])||0) : 0;
+      records.push({code, current, lp});
+    }
+    const existingIdx = ventasFileEntries.findIndex(e=>e.name===file.name);
+    const entry = {name: file.name, count: records.length, records};
+    if(existingIdx>=0) ventasFileEntries[existingIdx] = entry;
+    else ventasFileEntries.push(entry);
+  }
+  rebuildVentasMap();
+  renderVentasFileList();
+  updateVentasSub();
+}
+
+function buildG3Matchers(){
+  const lines = document.getElementById('g3keywords').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  return lines.map(kw=>{
+    const esc = kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    // si termina en dígito, evita matchear un número más largo (ej. "JORDAN 1" no debe matchear "JORDAN 11")
+    const suffix = /\d$/.test(kw) ? '(?!\\d)' : '';
+    return new RegExp('\\b'+esc+'\\b'+suffix, 'i');
+  });
+}
+
+function normDivision(raw){
+  const s = upperKey(raw);
+  if(s.includes('FOOTWEAR')) return 'FOOTWEAR';
+  if(s.includes('APPAREL')) return 'APPAREL';
+  if(s.includes('EQUIPMENT')) return 'EQUIPMENT';
+  return 'OTHER';
+}
+
+function computeOrder(){
+  const excluded = new Set(document.getElementById('excludeList').value.split('\n').map(s=>upperKey(s)).filter(Boolean));
+  const g3matchers = buildG3Matchers();
+  let boost = Number(document.getElementById('boostMult').value);
+  if(isNaN(boost)) boost = 1;
+
+  let nExcluded=0, nFallback=0, nG3=0, nSinStock=0, nVentasArchivo=0, nVentasRespaldo=0, nSinVenta=0;
+  const rows = [];
+  const sinStock = [];
+  for(const item of catalog){
+    const key = upperKey(item.product_code);
+    if(excluded.has(key)){ nExcluded++; continue; }
+    const division = normDivision(item.division_raw);
+    let stock, fuente;
+    if(stockMap[key]){
+      stock = stockMap[key].stock; fuente = 'archivo stock';
+    } else {
+      stock = item.stock_bl; fuente = 'fallback (Stock BL)'; nFallback++;
+    }
+    if(stock<=0){
+      nSinStock++;
+      sinStock.push({...item, division, stock_final:stock, fuente_stock:fuente});
+      continue;
+    }
+    // resolver ventas en capas: archivo de ventas (Current, luego LP) > USD Venta del stock (respaldo) > 0
+    let ventas = 0, fuenteVentas;
+    if(ventasMap[key] && ventasMap[key].current>0){
+      ventas = ventasMap[key].current; fuenteVentas = 'archivo ventas (Current)'; nVentasArchivo++;
+    } else if(ventasMap[key] && ventasMap[key].lp>0){
+      ventas = ventasMap[key].lp; fuenteVentas = 'archivo ventas (LP, sin Current)'; nVentasArchivo++;
+    } else if(stockMap[key] && stockMap[key].ventas>0){
+      ventas = stockMap[key].ventas; fuenteVentas = 'respaldo: USD Venta del stock'; nVentasRespaldo++;
+    } else {
+      ventas = 0; fuenteVentas = 'sin dato de venta'; nSinVenta++;
+    }
+    // stock>0 pero sin ventas registradas -> índice mínimo (1), no cero, para que siga siendo ordenable
+    let indice = stock*ventas;
+    if(indice===0) indice = 1;
+    const isG3 = g3matchers.some(re=>re.test(item.marketing_name));
+    if(isG3) nG3++;
+    const indiceFinal = isG3 ? indice*boost : indice;
+    rows.push({...item, division, stock_final:stock, ventas_usd:ventas, indice, indice_final:indiceFinal, es_3_grandes:isG3, fuente_stock:fuente, fuente_ventas:fuenteVentas});
+  }
+
+  const byDiv = {FOOTWEAR:[], APPAREL:[], EQUIPMENT:[], OTHER:[]};
+  rows.forEach(r=>byDiv[r.division].push(r));
+  for(const d in byDiv) byDiv[d].sort((a,b)=>b.indice_final - a.indice_final);
+
+  let rF = parseInt(document.getElementById('ratioFootwear').value, 10);
+  let rA = parseInt(document.getElementById('ratioApparel').value, 10);
+  let rE = parseInt(document.getElementById('ratioEquipment').value, 10);
+  if(isNaN(rF)||rF<0) rF=0; if(isNaN(rA)||rA<0) rA=0; if(isNaN(rE)||rE<0) rE=0;
+  if(rF+rA+rE===0){ rF=4; rA=1; rE=1; } // fallback si quedó todo en 0
+
+  const cycle = [
+    ...Array(rF).fill('FOOTWEAR'),
+    ...Array(rA).fill('APPAREL'),
+    ...Array(rE).fill('EQUIPMENT'),
+  ];
+  const cycleLen = cycle.length;
+  const queues = {FOOTWEAR:[...byDiv.FOOTWEAR], APPAREL:[...byDiv.APPAREL], EQUIPMENT:[...byDiv.EQUIPMENT]};
+  const fallbackOrder = ['FOOTWEAR','APPAREL','EQUIPMENT'];
+  const out = [];
+  let slot = 0;
+  const anyLeft = ()=>queues.FOOTWEAR.length||queues.APPAREL.length||queues.EQUIPMENT.length;
+  while(anyLeft()){
+    const designated = cycle[slot%cycleLen];
+    if(queues[designated].length){
+      out.push(queues[designated].shift());
+    } else {
+      for(const alt of fallbackOrder){
+        if(queues[alt].length){ out.push(queues[alt].shift()); break; }
+      }
+    }
+    slot++;
+  }
+  out.push(...byDiv.OTHER);
+  out.forEach((r,i)=>r.orden=i+1);
+
+  finalOrder = out;
+  sinStockList = sinStock;
+  renderResults({nExcluded, nFallback, nG3, nSinStock, nOther: byDiv.OTHER.length, nVentasArchivo, nVentasRespaldo, nSinVenta});
+}
+
+function renderResults(meta){
+  document.getElementById('results').style.display = 'block';
+  const div = k=>finalOrder.filter(r=>r.division===k).length;
+  document.getElementById('stats').innerHTML = [
+    ['Total en orden', finalOrder.length],
+    ['Excluidos', meta.nExcluded],
+    ['Sin stock', meta.nSinStock],
+    ['3 grandes', meta.nG3],
+    ['Footwear', div('FOOTWEAR')],
+    ['Apparel', div('APPAREL')],
+    ['Equipment', div('EQUIPMENT')],
+  ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const warnZone = document.getElementById('warnZone');
+  let warn = '';
+  if(meta.nSinStock>0){
+    warn += `<div class="warnbox"><b>${meta.nSinStock} SKU(s) sin stock disponible</b> (stock = 0) — se excluyeron por completo del orden, no compiten con índice mínimo. Quedan listados abajo, aparte, para que los puedas auditar.</div>`;
+  }
+  if(meta.nFallback>0){
+    warn += `<div class="warnbox"><b>${meta.nFallback} SKU(s)</b> no encontraron match en los archivos de stock — se usó el Stock BL de la colección (siempre que sea mayor a 0).</div>`;
+  }
+  if(meta.nVentasRespaldo>0){
+    warn += `<div class="warnbox"><b>${meta.nVentasRespaldo} SKU(s)</b> no tenían match (o tenían Current/LP en 0) en el archivo de ventas — se usó como respaldo el USD Venta del archivo de stock.</div>`;
+  }
+  if(meta.nSinVenta>0){
+    warn += `<div class="warnbox"><b>${meta.nSinVenta} SKU(s)</b> quedaron sin ningún dato de venta (ni archivo de ventas ni respaldo) — índice mínimo, al final de su división.</div>`;
+  }
+  if(meta.nOther>0){
+    warn += `<div class="warnbox"><b>${meta.nOther} SKU(s)</b> con una división no reconocida (ni Footwear/Apparel/Equipment) — se agregaron al final del orden general.</div>`;
+  }
+  warnZone.innerHTML = warn;
+
+  renderSinStockTable();
+  renderTable();
+}
+
+function renderSinStockTable(){
+  let box = document.getElementById('sinStockBox');
+  if(!sinStockList.length){
+    if(box) box.style.display='none';
+    return;
+  }
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'sinStockBox';
+    box.style.marginTop = '22px';
+    box.innerHTML = `<div style="font-weight:600; font-size:13px; margin-bottom:8px;">SKUs sin stock — excluidos del orden (${sinStockList.length})</div>
+      <div class="tablewrap" style="max-height:220px;">
+        <table><thead><tr><th>Product code</th><th>Nombre</th><th>División</th><th>Fuente</th></tr></thead>
+        <tbody id="sinStockBody"></tbody></table>
+      </div>`;
+    document.getElementById('results').appendChild(box);
+  }
+  box.style.display = 'block';
+  document.getElementById('sinStockBody').innerHTML = sinStockList.map(r=>`
+    <tr><td>${r.product_code}</td><td>${r.marketing_name}</td><td>${r.division}</td><td>${r.fuente_stock}</td></tr>
+  `).join('');
+}
+
+function renderTable(){
+  const q = upperKey(document.getElementById('search').value);
+  let rows = finalOrder.filter(r=> !q || upperKey(r.product_code).includes(q) || upperKey(r.marketing_name).includes(q));
+  const k = sortState.k, dir = sortState.dir;
+  rows = [...rows].sort((a,b)=>{
+    let va=a[k], vb=b[k];
+    if(typeof va==='string'){ va=va.toUpperCase(); vb=vb.toUpperCase(); }
+    if(va<vb) return -1*dir; if(va>vb) return 1*dir; return 0;
+  });
+  document.getElementById('tbody').innerHTML = rows.map(r=>`
+    <tr>
+      <td class="num">${r.orden}</td>
+      <td>${r.product_code}</td>
+      <td>${r.marketing_name}</td>
+      <td>${r.division}</td>
+      <td>${r.es_3_grandes ? '<span class="badge g3">3G</span>' : ''}</td>
+      <td class="num">${r.stock_final.toLocaleString('es-CL')}</td>
+      <td class="num">${Math.round(r.ventas_usd).toLocaleString('es-CL')}</td>
+      <td>${r.fuente_ventas.includes('respaldo')||r.fuente_ventas.includes('sin dato') ? `<span class="badge fb">${r.fuente_ventas}</span>` : r.fuente_ventas}</td>
+      <td class="num">${Math.round(r.indice_final).toLocaleString('es-CL')}</td>
+      <td>${r.fuente_stock.includes('fallback') ? '<span class="badge fb">fallback</span>' : 'stock'}</td>
+    </tr>`).join('');
+}
+
+document.querySelectorAll('thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(sortState.k===k) sortState.dir *= -1; else { sortState.k=k; sortState.dir=1; }
+    renderTable();
+  });
+});
+document.getElementById('search').addEventListener('input', renderTable);
+
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  const data = finalOrder.map(r=>({
+    Orden:r.orden, 'Product Code':r.product_code, 'Marketing Name':r.marketing_name,
+    'División':r.division, '3 Grandes': r.es_3_grandes?'Sí':'No',
+    'Stock': r.stock_final, 'Ventas (USD)': Math.round(r.ventas_usd), 'Fuente venta': r.fuente_ventas,
+    'Índice base': Math.round(r.indice), 'Índice final': Math.round(r.indice_final),
+    'Fuente stock': r.fuente_stock, 'Retail Price FA26': r.retail_price,
+    'PVP Sale': r.pvp_sale, '% Sale': r.pct_sale,
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Orden Final');
+  if(sinStockList.length){
+    const dataSinStock = sinStockList.map(r=>({
+      'Product Code':r.product_code, 'Marketing Name':r.marketing_name,
+      'División':r.division, 'Stock':r.stock_final, 'Fuente stock':r.fuente_stock,
+      'Motivo':'Excluido del orden por no tener stock disponible',
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(dataSinStock);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Sin stock');
+  }
+  XLSX.writeFile(wb, 'orden_final.xlsx');
+});
+
+document.getElementById('runBtn').addEventListener('click', ()=>{
+  document.getElementById('runMsg').textContent = 'Calculando…';
+  setTimeout(()=>{
+    computeOrder();
+    document.getElementById('runMsg').textContent = `Listo — ${finalOrder.length} SKUs ordenados.`;
+  }, 30);
+});
+
+// Inputs + drag&drop wiring
+function wireDrop(dropId, inputId, handler){
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  drop.addEventListener('click', ()=>input.click());
+  input.addEventListener('change', ()=>{ handler(input.files); input.value=''; });
+  ['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt, e=>{e.preventDefault(); drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(evt=>drop.addEventListener(evt, e=>{e.preventDefault(); drop.classList.remove('drag');}));
+  drop.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) handler(e.dataTransfer.files); });
+}
+wireDrop('drop1','file1', handleCatalogFiles);
+wireDrop('drop2','file2', handleStockFiles);
+wireDrop('drop3','file3', handleVentasFiles);
+</script>
+</body>
+</html>
